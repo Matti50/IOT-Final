@@ -1,0 +1,62 @@
+version: '2'
+
+services:
+  device-setup-mysql:
+    image: mysql:5
+    ports:
+      - "3306:3306"
+    command: --init-file /data/application/init.sql
+    environment: 
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: origin
+    volumes:
+      - ./device-setup/mysql:/var/lib/mysql
+      - ./device-setup/init.sql:/data/application/init.sql
+    networks:
+      - huertamanager
+  device-setup-service:
+    build:
+      context: ./device-setup/service
+      dockerfile: Dockerfile
+    networks:
+      - huertamanager
+    ports:
+      - "5683:5683/udp"
+    environment:
+      DB_HOST: device-setup-mysql
+    depends_on:
+      - device-setup-mysql
+  mqtt:
+    image: eclipse-mosquitto
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    ports:
+      - "1883:1883"
+    networks:
+      - huertamanager
+  influxdb:
+    image: influxdb:1.8
+    ports:
+      - "8086:8086" 
+    networks:
+      - huertamanager
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - influxdb
+    networks:
+      - huertamanager
+  telegraf:
+    image: telegraf:1.26
+    depends_on:
+      - influxdb
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf
+    networks:
+      - huertamanager
+
+networks:
+  huertamanager:
+    driver: bridge
